@@ -1,4 +1,8 @@
 // 📂 ALL CODE IS IN `dev` BRANCH
+## Demo Video
+
+[Watch the Demo on Google Drive](https://drive.google.com/file/d/1EqnR4VzF2JpqyRcXowlDBw0cHaOM4KJo/view?usp=sharing)
+
 // -------------------------------------------------------------------
 // MEME GENERATOR APP - INTERVIEW EXPLANATION
 // Built using React Native (Expo) + TypeScript
