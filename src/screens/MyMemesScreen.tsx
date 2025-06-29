@@ -1,18 +1,25 @@
-// src/screens/MyMemesScreen.tsx
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
+  import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getMemes, deleteMeme, toggleFavoriteStatus } from '../utils/memeStorage';
+import { useNetInfo } from '@react-native-community/netinfo';
+
 import { Meme } from '../types';
-import MemeListItem from '../components/MemeListItem';
-import { useTheme, ThemeColors } from '../styles/theme';
+import { getMemes } from '../utils/memeStorage';
+import ImageCard from '../components/ImageCard';
+import ConnectionBanner from '../components/ConnectionBanner';
+import MemeActionsModal from '../components/MemeActionsModal';
+import { useTheme } from '../styles/theme';
+import createStyles from '../styles/screensStyles/MyMemesScreen.styles';
 
 const MyMemesScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const netInfo = useNetInfo();
 
   const [memes, setMemes] = useState<Meme[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const loadData = useCallback(() => {
     const fetchMemes = async () => {
@@ -25,79 +32,56 @@ const MyMemesScreen = () => {
   useFocusEffect(loadData);
 
   const onRefresh = useCallback(() => {
-    const refreshData = async () => {
-      setRefreshing(true);
-      await loadData();
-      setRefreshing(false);
-    };
-    refreshData();
+    setRefreshing(true);
+    loadData();
+    setRefreshing(false);
   }, [loadData]);
 
-  const handleDelete = async (id: string) => {
-    await deleteMeme(id);
-    setMemes(currentMemes => currentMemes.filter(meme => meme.id !== id));
+  const openActionModal = (meme: Meme) => {
+    setSelectedMeme(meme);
+    setModalVisible(true);
   };
 
-  const handleToggleFavorite = async (id: string) => {
-    await toggleFavoriteStatus(id);
-    setMemes(currentMemes =>
-      currentMemes.map(meme =>
-        meme.id === id ? { ...meme, isFavorite: !meme.isFavorite } : meme
-      )
-    );
+  const closeModal = () => {
+    setSelectedMeme(null);
+    setModalVisible(false);
   };
+
+  const renderItem = ({ item }: { item: Meme }) => (
+    <View style={styles.cardContainer}>
+      <ImageCard image={{ uri: item.imageUri }} onPress={() => openActionModal(item)} isFavorite={item.isFavorite} />
+    </View>
+  );
 
   if (!refreshing && memes.length === 0) {
     return (
       <View style={styles.centered}>
         <Text style={styles.infoText}>You haven't saved any memes yet.</Text>
-        <Text style={styles.infoText}>Go to the "Create" tab to make one!</Text>
+        <Text style={styles.infoText}>Go to the "Home" tab to make one!</Text>
       </View>
     );
   }
 
   return (
-    <FlatList
-      data={memes}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <MemeListItem
-          meme={item}
-          onDelete={handleDelete}
-          onToggleFavorite={handleToggleFavorite}
-        />
-      )}
-      contentContainerStyle={styles.list}
-      style={{ backgroundColor: theme.background }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-        />
-      }
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={memes}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        numColumns={2}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+        }
+      />
+      <MemeActionsModal
+        visible={modalVisible}
+        onClose={closeModal}
+        meme={selectedMeme}
+        setMemes={setMemes}
+      />
+    </View>
   );
 };
-
-const createStyles = (theme: ThemeColors) => StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: theme.background,
-  },
-  infoText: {
-    fontSize: 18,
-    color: theme.secondaryText,
-    textAlign: 'center',
-  },
-  list: {
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-});
 
 export default MyMemesScreen;

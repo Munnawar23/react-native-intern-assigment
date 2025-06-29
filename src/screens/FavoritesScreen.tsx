@@ -1,20 +1,28 @@
-// src/screens/FavoritesScreen.tsx
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getMemes, deleteMeme, toggleFavoriteStatus } from '../utils/memeStorage';
+import { getMemes } from '../utils/memeStorage';
 import { Meme } from '../types';
-import MemeListItem from '../components/MemeListItem';
-import { useTheme, ThemeColors } from '../styles/theme';
+import ImageCard from '../components/ImageCard';
+import { useTheme } from '../styles/theme';
+import stylesGenerator from '../styles/screensStyles/FavoritesScreen.styles';
+import ConnectionBanner from '@/components/ConnectionBanner';
+import MemeActionsModal from '../components/MemeActionsModal';
 
 const FavoritesScreen = () => {
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = stylesGenerator(theme);
 
   const [allMemes, setAllMemes] = useState<Meme[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  // Load all memes from storage
   const loadData = useCallback(() => {
     const fetchMemes = async () => {
       const storedMemes = await getMemes();
@@ -26,84 +34,62 @@ const FavoritesScreen = () => {
   useFocusEffect(loadData);
 
   const onRefresh = useCallback(() => {
-    const refreshData = async () => {
-      setRefreshing(true);
-      await loadData();
-      setRefreshing(false);
-    };
-    refreshData();
+    setRefreshing(true);
+    loadData();
+    setRefreshing(false);
   }, [loadData]);
 
-  // Handlers for delete and favorite are the same as in MyMemesScreen
-  const handleDelete = async (id: string) => {
-    await deleteMeme(id);
-    setAllMemes(currentMemes => currentMemes.filter(meme => meme.id !== id));
+  const openActionModal = (meme: Meme) => {
+    setSelectedMeme(meme);
+    setModalVisible(true);
   };
 
-  const handleToggleFavorite = async (id: string) => {
-    await toggleFavoriteStatus(id);
-    // Un-favoriting a meme will make it disappear from this list instantly
-    setAllMemes(currentMemes =>
-      currentMemes.map(meme =>
-        meme.id === id ? { ...meme, isFavorite: !meme.isFavorite } : meme
-      )
-    );
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedMeme(null);
   };
 
-  // Filter the full list to get only favorites for rendering
   const favoriteMemes = allMemes.filter(meme => meme.isFavorite);
+
+  const renderItem = ({ item }: { item: Meme }) => (
+    <View style={styles.cardContainer}>
+      <ImageCard image={{ uri: item.imageUri }} onPress={() => openActionModal(item)} />
+    </View>
+  );
 
   if (!refreshing && favoriteMemes.length === 0) {
     return (
       <View style={styles.centered}>
         <Text style={styles.infoText}>You haven't favorited any memes yet.</Text>
-        <Text style={styles.infoText}>Tap the star icon on a meme to add it here!</Text>
+        <Text style={styles.infoText}>Go to the "My Memes" tab to add some!</Text>
       </View>
     );
   }
 
   return (
-    <FlatList
-      data={favoriteMemes} // <-- Render only the filtered list
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <MemeListItem
-          meme={item}
-          onDelete={handleDelete}
-          onToggleFavorite={handleToggleFavorite}
-        />
-      )}
-      contentContainerStyle={styles.list}
-      style={{ backgroundColor: theme.background }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-        />
-      }
-    />
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <FlatList
+        data={favoriteMemes}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        numColumns={2}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+          />
+        }
+      />
+      <MemeActionsModal
+        visible={modalVisible}
+        onClose={closeModal}
+        meme={selectedMeme}
+        setMemes={setAllMemes}
+      />
+    </View>
   );
 };
-
-const createStyles = (theme: ThemeColors) => StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: theme.background,
-  },
-  infoText: {
-    fontSize: 18,
-    color: theme.secondaryText,
-    textAlign: 'center',
-  },
-  list: {
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-});
 
 export default FavoritesScreen;

@@ -1,31 +1,22 @@
-// src/components/ImageCard.tsx
 import React from 'react';
-import { TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { TouchableOpacity, Image, View, Text } from 'react-native';
+import styles from '../styles/componentsStyles/ImageCard.styles';
 
 interface Props {
   image: any;
   onPress: () => void;
+  isFavorite?: boolean;
 }
 
-const ImageCard = ({ image, onPress }: Props) => (
+const ImageCard = ({ image, onPress, isFavorite }: Props) => (
   <TouchableOpacity style={styles.card} onPress={onPress}>
     <Image source={image} style={styles.image} />
+    {isFavorite && (
+      <View style={styles.favoriteBadge}>
+        <Text style={styles.favoriteIcon}>❤️</Text>
+      </View>
+    )}
   </TouchableOpacity>
 );
-
-const styles = StyleSheet.create({
-  card: {
-    width: 150,
-    height: 150,
-    borderRadius: 8,
-    margin: 8,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-});
 
 export default ImageCard;

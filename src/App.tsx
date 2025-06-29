@@ -1,14 +1,13 @@
-// src/App.tsx
 import React from 'react';
-import AppNavigator from './navigation/Navigation';
+import RootNavigator from './navigation/RootNavigator.tsx';
 import { AppThemeProvider } from './styles/theme';
 
-export default function App() {
+const App = () => {
   return (
-    // We wrap our entire app in the provider.
-    // It will handle all theme changes.
     <AppThemeProvider>
-      <AppNavigator />
+      <RootNavigator />
     </AppThemeProvider>
   );
-}
+};
+
+export default App;

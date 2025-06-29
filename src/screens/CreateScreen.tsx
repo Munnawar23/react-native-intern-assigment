@@ -1,142 +1,112 @@
 // src/screens/CreateScreen.tsx
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Button, Image, Keyboard, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { useNetInfo } from '@react-native-community/netinfo';
-import { getCachedImageUri } from '../services/imageCaching';
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Image,
+  Alert,
+  Platform,
+  KeyboardAvoidingView,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
+import { useRoute, useNavigation, RouteProp, NavigationProp } from '@react-navigation/native';
+import ViewShot from 'react-native-view-shot';
+
+import { useTheme } from '../styles/theme';
 import { saveMeme } from '../utils/memeStorage';
-import { copyImageToAppDir } from '../utils/imageUtils';
-import { useTheme, ThemeColors } from '../styles/theme';
+import Button from '../components/Button';
+import createStyles from '../styles/screensStyles/CreateScreen.styles';
+
+type RootStackParamList = {
+  Create: { imageUri: string };
+  Main: { screen: string };
+};
+type CreateScreenRouteProp = RouteProp<RootStackParamList, 'Create'>;
+type CreateScreenNavigationProp = NavigationProp<RootStackParamList>;
 
 const CreateScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const netInfo = useNetInfo(); // Get network state
 
-  const [urlInput, setUrlInput] = useState('');
-  const [sourceImageUri, setSourceImageUri] = useState<string | null>(null);
-  const [displayedImageUri, setDisplayedImageUri] = useState<string | null>(null);
+  const route = useRoute<CreateScreenRouteProp>();
+  const navigation = useNavigation<CreateScreenNavigationProp>();
+  const { imageUri } = route.params;
+
   const [topText, setTopText] = useState('');
   const [bottomText, setBottomText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const resetState = () => {
-    setUrlInput('');
-    setSourceImageUri(null);
-    setDisplayedImageUri(null);
-    setTopText('');
-    setBottomText('');
-  };
+  const viewShotRef = useRef<ViewShot>(null);
 
-  const handleLoadImageFromUrl = async () => {
-    if (!urlInput.trim()) return alert('Please enter an image URL.');
-    Keyboard.dismiss();
-    setIsLoading(true);
-    setDisplayedImageUri(null);
-    const cachedUri = await getCachedImageUri(urlInput);
-    if (cachedUri) {
-      setDisplayedImageUri(cachedUri);
-      setSourceImageUri(urlInput);
-    } else {
-      alert('Failed to load image.');
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    try {
+      const viewShot = viewShotRef.current;
+      if (!viewShot || typeof viewShot.capture !== 'function') {
+        throw new Error('Capture component is not available.');
+      }
+
+      const capturedUri = await viewShot.capture();
+      await saveMeme({ imageUri: capturedUri });
+
+      Alert.alert('Success!', 'Your meme has been saved.', [
+        { text: 'OK', onPress: () => navigation.navigate('Main', { screen: 'MyMemes' }) },
+      ]);
+    } catch (error) {
+      console.error('Failed to save meme:', error);
+      Alert.alert('Error', 'Could not save the meme. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    setIsLoading(false);
-  };
-
-  const handleChooseImageFromGallery = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setIsLoading(true);
-      const tempUri = result.assets[0].uri;
-      const permanentUri = await copyImageToAppDir(tempUri);
-      setDisplayedImageUri(permanentUri);
-      setSourceImageUri(permanentUri);
-      setUrlInput('');
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveMeme = async () => {
-    if (!sourceImageUri) {
-      return Alert.alert('No Image', 'Please load an image first.');
-    }
-    await saveMeme({ imageUri: sourceImageUri, topText, bottomText });
-    Alert.alert('Success', 'Meme saved successfully!');
-    resetState();
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <View style={styles.imagePreview}>
-        {isLoading && <ActivityIndicator size="large" color={theme.primary} />}
-        {!isLoading && displayedImageUri && (
-          <>
-            <Image source={{ uri: displayedImageUri }} style={styles.image} resizeMode="contain" />
-            <Text style={[styles.memeText, styles.topText]}>{topText}</Text>
-            <Text style={[styles.memeText, styles.bottomText]}>{bottomText}</Text>
-          </>
-        )}
-        {!isLoading && !displayedImageUri && <Text style={styles.placeholderText}>Image will appear here</Text>}
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+        <ViewShot ref={viewShotRef} style={styles.memeCanvas} options={{ format: 'jpg', quality: 0.9 }}>
+          <Image source={{ uri: imageUri }} style={styles.imageBackground} />
+          <View style={styles.textOverlay}>
+            <Text style={styles.memeText} numberOfLines={2}>{topText}</Text>
+            <Text style={styles.memeText} numberOfLines={2}>{bottomText}</Text>
+          </View>
+        </ViewShot>
 
-      <View style={styles.controlsContainer}>
-        <TextInput style={styles.input} placeholder="Top Text" placeholderTextColor={theme.placeholder} value={topText} onChangeText={setTopText} />
-        <TextInput style={styles.input} placeholder="Bottom Text" placeholderTextColor={theme.placeholder} value={bottomText} onChangeText={setBottomText} />
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter Top Text"
+            placeholderTextColor={theme.placeholder}
+            value={topText}
+            onChangeText={setTopText}
+            maxLength={50}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Enter Bottom Text"
+            placeholderTextColor={theme.placeholder}
+            value={bottomText}
+            onChangeText={setBottomText}
+            maxLength={50}
+          />
+        </View>
+
         <View style={styles.buttonContainer}>
-          <Button title="Choose from Gallery" onPress={handleChooseImageFromGallery} color={theme.primary} />
+          {isSaving ? (
+            <ActivityIndicator size="large" color={theme.primary} />
+          ) : (
+            <Button label="Save Meme" onPress={handleSave} />
+          )}
         </View>
-        <TextInput style={styles.input} placeholder="...or enter image URL" placeholderTextColor={theme.placeholder} value={urlInput} onChangeText={setUrlInput} />
-        <Button
-          title="Load Image from URL"
-          onPress={handleLoadImageFromUrl}
-          color={theme.primary}
-          disabled={!netInfo.isConnected}
-        />
-        {!netInfo.isConnected && (
-            <Text style={styles.offlineText}>
-                URL loading is disabled while offline.
-            </Text>
-        )}
-        <View style={styles.saveButton}>
-          <Button title="Save Meme" onPress={handleSaveMeme} color="#4CAF50" disabled={!displayedImageUri} />
-        </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
-
-const createStyles = (theme: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
-  imagePreview: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#333',
-    margin: 10, borderRadius: 8, position: 'relative',
-  },
-  image: { width: '100%', height: '100%' },
-  placeholderText: { color: theme.placeholder, fontSize: 16 },
-  memeText: {
-    position: 'absolute', width: '90%', textAlign: 'center', fontSize: 28,
-    fontWeight: '900', color: 'white', textShadowColor: 'black',
-    textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 5,
-  },
-  topText: { top: 10 },
-  bottomText: { bottom: 10 },
-  controlsContainer: { padding: 20, backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border },
-  input: {
-    height: 40, borderColor: theme.border, borderWidth: 1, borderRadius: 5,
-    paddingHorizontal: 10, marginBottom: 10, color: theme.text,
-  },
-  buttonContainer: { marginBottom: 10 },
-  saveButton: { marginTop: 10 },
-  offlineText: {
-    textAlign: 'center',
-    color: theme.secondaryText,
-    fontSize: 12,
-    marginTop: 5,
-  }
-});
 
 export default CreateScreen;
